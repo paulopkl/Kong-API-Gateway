@@ -1,0 +1,23 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin # KongClusterPlugin
+metadata:
+  name: oidc-bets
+  namespace: bets
+  # labels:
+  #   global: "false"
+# disabled: false # optionally disable the plugin in Kong
+plugin: oidc
+config:
+  client_id: "kong"
+  client_secret: "5HqqwY4dlgG69cJC3QFMflBzQJP8iP8O" # "g4isONaheW69prXcO4Fp5Kz6Azi6w5Km"
+  discovery: "http://keycloak.iam/realms/bets/.well-known/openid-configuration"
+  introspection_endpoint: "http://keycloak.iam/realms/bets/protocol/openid-connect/token/introspect"
+  bearer_only: "yes"
+  bearer_jwt_auth_enable: "yes"
+  bearer_jwt_auth_allowed_auds:
+    - account
+  # bearer_jwt_auth_signing_algs: 
+  #   - 'RS256'
+  # realm: kong
+  # scope: openid
+  # redirect_after_logout_uri : https://localhost/auth/realms/kong/protocol/openid-connect/logout?redirect_uri=https://localhost

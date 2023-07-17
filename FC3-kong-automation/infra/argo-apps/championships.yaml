@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: championships
+  namespace: argocd
+  finalizers: # When specific K8S resource is uninstalled do:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source: # Where ArgoCD will stay listening to sync application
+    path: deployments/championships # Path where is the recipient
+    repoURL: https://github.com/paulopkl/fc-api-gateway-k8s-app-championships.git
+    targetRevision: HEAD # repository main
+    helm:
+      valueFiles:
+        - values-kong.yaml
+  destination: # Where ArgoCD will create artifacts
+    namespace: bets
+    server: https://kubernetes.default.svc # Tell that ArgoCd is installed in the same cluster of kubernetes
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true # If there ins't namespace then create it

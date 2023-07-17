@@ -1,0 +1,11 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rl-by-header
+  namespace: bets
+plugin: rate-limiting
+config:
+  second: 10000 # 10000/60
+  limit_by: header
+  policy: local
+  header_name: X-Credential-Identifier

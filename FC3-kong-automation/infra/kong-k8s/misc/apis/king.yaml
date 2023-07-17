@@ -1,0 +1,9 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongIngress
+metadata:
+  name: do-not-preserve-host
+  namespace: bets
+# route:
+#   preserve_host: false
+# upstream:
+#   host_header: bets.bets.svc # bets.bets.svc.cluster-local

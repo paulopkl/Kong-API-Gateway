@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bets-api
+  namespace: bets
+  annotations:
+    # konghq.com/strip-path: 'true'
+    konghq.com/override: do-not-preserve-host
+    konghq.com/preserve-host: "false"
+    konghq.com/host-header: "bets.bets.svc" # bets.bets.svc.cluster-local
+    konghq.com/plugins: oidc-bets,rl-by-header,prometheus-bets # oidc-bets,rl-by-header,prometheus-bets
+spec:
+  ingressClassName: "kong" # The ingress i want is "kong" nor nginx
+  rules:
+    - http:
+        paths:
+          - path: /api/bets
+            pathType: Prefix
+            backend:
+              service:
+                name: bets
+                port:
+                  number: 9999
