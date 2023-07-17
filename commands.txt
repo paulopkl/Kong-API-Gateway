@@ -1,0 +1,270 @@
+# Github
+  https://github.com/devfullcycle/FC3-kong-automation
+
+
+# Concept 
+  cluster port 80 -> 30000
+  cluster port 443 -> 30003
+  cluster is ready to accept ingress
+
+# Kind
+
+  # Create Cluster
+    kind create cluster --config ./kind/clusterconfig.yaml
+    kubectl cluster-info --context kind-paulo-kong
+
+# Add Kong Helm repository
+  helm repo add kong https://charts.konghq.com
+  helm repo update
+
+# Install Kong
+  kubectl create namespace kong
+  helm install kong kong/kong \
+    -f FC3-kong-automation/infra/kong-k8s/kong/kong-conf.yaml \
+    --namespace kong \
+    --set proxy.type=NodePort,proxy.http.nodePort=30000,proxy.tls.nodePort=30003 \
+    --set ingressController.installCRDs=false \
+    --set serviceMonitor.enabled=true \
+    --set serviceMonitor.labels.release=promstack
+
+    --generate-name
+
+  # export PROXY_IP=$(kubectl get -o jsonpath="{.status.loadBalancer.ingress[0].ip}" service -n kong demo-kong-proxy)
+
+# Add Prometheus Helm repository
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm repo update
+
+# Install prometheus
+  kubectl create namespace monitoring
+  helm install prometheus-stack prometheus-community/kube-prometheus-stack \
+    -f FC3-kong-automation/infra/kong-k8s/misc/prometheus/prometheus.yaml \
+    --namespace monitoring
+
+# Add Keycloak Helm repository
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm repo update
+
+# Install Keycloak
+  kubectl create namespace iam
+  helm install keycloak bitnami/keycloak \
+    --namespace iam \
+    --set auth.adminUser=keycloak,auth.adminPassword=keycloak \
+
+## Install Infra
+
+  # Create namespace bets
+    kubectl create namespace bets
+
+  # Create ConfigMaps
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apps/configmaps/ \
+      --recursive -n bets
+
+  # Create Deployments
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apps/deployments/ \
+      --recursive -n bets
+
+  # Create Services
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apps/services/ \
+      --recursive -n bets
+
+  # Create HPA
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apps/hpa/ \
+      --recursive -n bets
+
+
+## Kongging
+
+  ## DEPRECATED ##
+  # Configure Ingress extensor of kong to adjust for Service Mesh to not preserve host
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apis/king.yaml \
+      -n bets
+
+  # Configure Local Kong Plugin of Rate Limit "rate-limiting"
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apis/kong-plugins/kong-plugin-ratelimit.yaml \
+      -n bets
+
+  # Configure Global Kong Plugin of Prometheus "prometheus"
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apis/kong-plugins/kong-global-plugin-prometheus.yaml
+
+  # Configure Kong Community Plugin openId connect "oidc" to require
+  # JWT authorization with Keycloack:
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apis/kong-plugins/kong-plugin-openid.yaml \
+      -n bets
+
+  # Create Ingress and configure to use the kubernetes mechanism as 
+  # LoadBalancer. Configure Ingress to use kong plugins:
+  # "oidc", "rate-limiting", "prometheus"
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apis/kong-ingress-bets-api.yaml \
+      -n bets
+
+## Test generating JWT Token
+  
+  # Create a Pod for Curl
+    kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/token/pod.yaml
+
+  # Enter the container
+    kubectl exec -it testcurl -- /bin/sh -n default
+
+  # Get Token
+    curl --location --request POST 'http://keycloak.iam/realms/bets/protocol/openid-connect/token' \
+      --header 'Content-Type: application/x-www-form-urlencoded' \
+      --data-urlencode 'client_id=kong' \
+      --data-urlencode 'client_secret=5HqqwY4dlgG69cJC3QFMflBzQJP8iP8O' \
+      --data-urlencode 'grant_type=password' \
+      --data-urlencode 'username=paulo' \
+      --data-urlencode 'password=paulo123' \
+      --data-urlencode 'scope=openid'
+
+# ArgoCD
+
+  # Install ArgoCD
+    kubectl create namespace argocd
+    kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml \
+      --namespace argocd
+
+  # Get Initial Password of ArgoCD
+    kubectl -n argocd get secret argocd-initial-admin-secret \
+      -o jsonpath={.data.password} | base64 -d; echo ""
+
+    ## OPTIONAL
+    # Get initial password
+      argocd admin initial-password -n argocd
+    # Login
+      argocd login <ARGOCD_SERVER>
+    # Change password
+      argocd account update-password
+
+  # Using UI 
+    # Forward port to localhost
+      kubectl port-forward svc/argocd-server 8081:80 -n argocd
+
+  # Initialize ArgoCD for Players
+    kubectl apply -f FC3-kong-automation/infra/argo-apps/players.yaml \
+      -n argocd
+
+  # Initialize ArgoCD for Matches
+    kubectl apply -f FC3-kong-automation/infra/argo-apps/matches.yaml \
+      -n argocd
+
+  # Initialize ArgoCD for ChampionShips
+    kubectl apply -f FC3-kong-automation/infra/argo-apps/championships.yaml \
+      -n argocd
+    
+  # Initialize ArgoCD for Bets
+    kubectl apply -f FC3-kong-automation/infra/argo-apps/bets.yaml \
+      -n argocd
+
+# Load Test - Using TestKube for K8S and K6 for Javascript
+
+    # Install TestKube on my local Linux machines
+      wget -qO - https://repo.testkube.io/key.pub \
+        | sudo apt-key add - && \
+            echo "deb https://repo.testkube.io/linux linux main" \
+        | sudo tee -a /etc/apt/sources.list && \
+          sudo apt-get update && \
+          sudo apt-get install -y testkube
+
+    # Install and configure TestKube on Kubernetes
+      kubectl testkube install
+
+    # Add metrics-server Helm Repo for "monitor metrics" and "Auto-Scaling" HPA
+      helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+      helm repo update
+    
+    # Install Metrics Server using Helm
+      helm upgrade --install metrics-server metrics-server/metrics-server \
+        --namespace kube-system \
+        --set args={--kubelet-insecure-tls}
+
+    # Configure Prometheus for Scrapping
+      kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/prometheus/prometheus.yaml
+
+    # List all Helm applications running
+      helm list -A
+
+    # Remove Prometheus installation
+      helm delete prometheus-stack -n monitoring
+
+    # Install prometheus
+      helm install prometheus-stack prometheus-community/kube-prometheus-stack \
+        -f FC3-kong-automation/infra/kong-k8s/misc/prometheus/prometheus.yaml \
+        --namespace monitoring
+
+    # Get Pods of prometheus
+      kubectl get pods -l "release=prometheus-stack" \
+        --namespace monitoring
+
+    # Find Kong HOST
+      kubectl get svc -n kong
+
+    # Create test structure
+      kubectl testkube delete test create-bet-load
+      kubectl testkube create test --file ./load/create_bet_load.js --type k6/script --name create-bet-load
+
+    # Testing the load capacity
+      kubectl testkube run test create-bet-load -f
+
+    # Get Results of test
+      kubectl testkube get execution [pod/test Id]
+
+# Acessing App Services
+
+  # Keycloak
+    kubectl port-forward svc/keycloak 8070:80 -n iam
+  
+  # ArgoCD
+    kubectl port-forward svc/argocd-server 8090:80 -n argocd
+
+    # Get Initial Password of ArgoCD
+      kubectl -n argocd get secret argocd-initial-admin-secret \
+        -o jsonpath={.data.password} | base64 -d; echo ""
+
+  # Prometheus
+    kubectl port-forward svc/prometheus-stack-kube-prom-prometheus \
+      9090:9090 -n monitoring
+
+    # Default Password
+      "prom-operator"
+
+  # Prometheus Grafana
+    kubectl port-forward service/prometheus-stack-grafana \
+      -n monitoring 3000:80
+
+
+# Logs collecting (EFK) Elastic Search, FluentD, Kibana
+# Collect FluentD -> TCP -> Elastic Search
+
+  # Elastic
+
+    kubectl create namespace logs
+    helm repo add elastic https://helm.elastic.co
+    helm repo update
+    helm install elasticsearch elastic/elasticsearch \
+      -f FC3-kong-automation/infra/kong-k8s/efk/elastic/elastic-values.yaml \
+      --version=8.5.1 \
+      --namespace=logs \
+
+    1. Watch all cluster members come up:
+      kubectl get pods --namespace=logs -l app=elasticsearch-master -w
+
+    2. Retrieve elastic user's password:
+      kubectl get secrets --namespace=logs elasticsearch-master-credentials -ojsonpath='{.data.password}' | base64 -d]
+    
+    3. Test cluster health using Helm test:
+      helm --namespace=logs test elasticsearch
+
+  # FluentD
+    helm repo add fluent https://fluent.github.io/helm-charts
+    helm repo update
+    helm install fluentd fluent/fluentd --namespace logs -f FC3-kong-automation/infra/kong-k8s/efk/fluentd/fluentd-values.yaml
+
+  # Kibana
+    helm repo add elastic https://helm.elastic.co
+    helm repo update
+    helm install kibana elastic/kibana \
+      --version=8.5.1 \
+      --namespace=logs \
+      --set service.type=NodePort \
+      --set service.nodePort=31000
+

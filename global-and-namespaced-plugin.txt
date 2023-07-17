@@ -1,0 +1,19 @@
+A plugin which isn't associated to any 
+    - Service
+    - Route
+    - Consumer 
+Is considered global, and will be run on every request. 
+[https://docs.konghq.com/gateway/latest/admin-api/#add-plugin]
+[https://docs.konghq.com/gateway/latest/admin-api/#precedence]
+
+
+E. G - Local prometheus
+# kind: KongPlugin
+
+E. G - Global prometheus
+# kind: KongClusterPlugin
+# metadata:
+#   annotations:
+#     kubernetes.io/ingress.class: kong
+#   labels:
+#     global: "true"

@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bets-api-0
+  annotations:
+    kubernetes.io/ingress.class: kong
+spec:
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - backend:
+              service:
+                name: bets-api-service-0
+                port:
+                  number: 80
+            path: /api/.*
+            pathType: ImplementationSpecific
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bets-api-1
+  annotations:
+    kubernetes.io/ingress.class: kong
+spec:
+  rules:
+    - host: bets.bets.svc.cluster.local
+      http:
+        paths:
+          - backend:
+              service:
+                name: bets-api-service-1
+                port:
+                  number: 80
+            pathType: ImplementationSpecific

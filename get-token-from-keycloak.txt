@@ -1,0 +1,12 @@
+## host = localhost:8080
+## POST - "http://[host]/realms/bets/protocol/openid-connect/token"
+## headers - { "Content-Type": "application/x-www-form-urlencoded" }
+## body - {
+##  "client_id": "",
+##  "client_secret": "",
+##  "username": "",
+##  "password": "",
+##  "grant_type": "password",
+##  "scope": "openid"
+## }
+
