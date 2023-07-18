@@ -13,11 +13,12 @@
     kind create cluster --config ./kind/clusterconfig.yaml
     kubectl cluster-info --context kind-paulo-kong
 
-# Add Kong Helm repository
-  helm repo add kong https://charts.konghq.com
-  helm repo update
-
 # Install Kong
+
+  # Add Kong Helm repository
+    helm repo add kong https://charts.konghq.com
+    helm repo update
+
   kubectl create namespace kong
   helm install kong kong/kong \
     -f FC3-kong-automation/infra/kong-k8s/kong/kong-conf.yaml \
@@ -27,7 +28,7 @@
     --set serviceMonitor.enabled=true \
     --set serviceMonitor.labels.release=promstack
 
-    --generate-name
+    # --generate-name
 
   # export PROXY_IP=$(kubectl get -o jsonpath="{.status.loadBalancer.ingress[0].ip}" service -n kong demo-kong-proxy)
 
@@ -41,15 +42,15 @@
     -f FC3-kong-automation/infra/kong-k8s/misc/prometheus/prometheus.yaml \
     --namespace monitoring
 
-# Add Keycloak Helm repository
-  helm repo add bitnami https://charts.bitnami.com/bitnami
-  helm repo update
-
 # Install Keycloak
-  kubectl create namespace iam
-  helm install keycloak bitnami/keycloak \
-    --namespace iam \
-    --set auth.adminUser=keycloak,auth.adminPassword=keycloak \
+  # Add Keycloak Helm repository
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+    kubectl create namespace iam
+    helm install keycloak bitnami/keycloak \
+      --namespace iam \
+      --set auth.adminUser=keycloak,auth.adminPassword=keycloak \
 
 ## Install Infra
 
@@ -71,7 +72,6 @@
   # Create HPA
     kubectl apply -f FC3-kong-automation/infra/kong-k8s/misc/apps/hpa/ \
       --recursive -n bets
-
 
 ## Kongging
 
@@ -243,13 +243,13 @@
     helm install elasticsearch elastic/elasticsearch \
       -f FC3-kong-automation/infra/kong-k8s/efk/elastic/elastic-values.yaml \
       --version=8.5.1 \
-      --namespace=logs \
+      --namespace logs \
 
     1. Watch all cluster members come up:
-      kubectl get pods --namespace=logs -l app=elasticsearch-master -w
+      kubectl get pods -n logs -l app=elasticsearch-master -w
 
     2. Retrieve elastic user's password:
-      kubectl get secrets --namespace=logs elasticsearch-master-credentials -ojsonpath='{.data.password}' | base64 -d]
+      kubectl get secrets -n logs elasticsearch-master-credentials -ojsonpath='{.data.password}' | base64 -d
     
     3. Test cluster health using Helm test:
       helm --namespace=logs test elasticsearch
@@ -267,4 +267,3 @@
       --namespace=logs \
       --set service.type=NodePort \
       --set service.nodePort=31000
-
